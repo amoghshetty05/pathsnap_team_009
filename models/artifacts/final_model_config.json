@@ -1,0 +1,47 @@
+{
+  "algorithm": "LightGBM",
+  "params": {
+    "n_estimators": 350,
+    "learning_rate": 0.08299575156189523,
+    "num_leaves": 63,
+    "min_child_samples": 27,
+    "subsample": 0.8328999032452618,
+    "colsample_bytree": 0.5510034437341257,
+    "reg_lambda": 0.5706494482259403,
+    "reg_alpha": 0.007060938615615895
+  },
+  "features": [
+    "dist",
+    "dist_rank",
+    "dist_gap",
+    "n_cands",
+    "heading_diff",
+    "heading_diff_w",
+    "heading_valid",
+    "speed",
+    "dt_prev",
+    "arc_len",
+    "frac",
+    "dist_prev",
+    "dist_next",
+    "dist_win_mean",
+    "to_deg",
+    "from_deg"
+  ],
+  "objective": "mean 3-fold GroupKFold observation-level top-1 accuracy",
+  "search_row_stride": 6,
+  "n_trials": 50,
+  "search_folds": 3,
+  "search_space": {
+    "n_estimators": "int [100, 600], step 50",
+    "learning_rate": "float [0.01, 0.2], log-uniform",
+    "num_leaves": "int [15, 255], log-uniform",
+    "min_child_samples": "int [5, 200], log-uniform",
+    "subsample": "float [0.5, 1.0] (bagging_freq=1)",
+    "colsample_bytree": "float [0.5, 1.0]",
+    "reg_lambda": "float [1e-3, 10], log-uniform",
+    "reg_alpha": "float [1e-3, 10], log-uniform"
+  },
+  "search_seconds": 310.51197028160095,
+  "seed": 42
+}
