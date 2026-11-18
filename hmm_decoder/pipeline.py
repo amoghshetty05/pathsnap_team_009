@@ -41,7 +41,10 @@ class _BoosterModel:
     """Wraps a native LightGBM Booster with a predict_proba interface."""
     def __init__(self, path):
         import lightgbm as lgb
-        self.booster = lgb.Booster(model_file=str(path))
+        # Read as text and normalise line endings: Git on Windows may convert LF to CRLF,
+        # which LightGBM's model parser cannot read.
+        text = Path(path).read_bytes().decode("utf-8").replace("\r\n", "\n")
+        self.booster = lgb.Booster(model_str=text)
 
     def predict_proba(self, X):
         p = self.booster.predict(X)

@@ -1,0 +1,4 @@
+# Keep model artifacts byte-identical on every OS (no CRLF conversion)
+models/artifacts/* -text
+*.joblib binary
+*.db binary
