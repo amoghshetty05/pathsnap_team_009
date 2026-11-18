@@ -1,0 +1,13 @@
+# raw and processed data are not committed (place the provided data under data/raw/)
+data/raw/
+data/processed/
+# large comparison-model artifacts (re-created by models/train_compare.py)
+models/artifacts/KNN.joblib
+models/artifacts/RandomForest.joblib
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+.DS_Store
