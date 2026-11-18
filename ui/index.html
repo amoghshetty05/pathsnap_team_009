@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PathSnap – Route Reconstruction</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --bg:#f6f7f9; --panel:#fff; --line:#dde1e6; --ink:#1d2329; --muted:#66707a; --accent:#d62728; --gps:#1f77b4; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:var(--ink); background:var(--bg); }
+  header { display:flex; align-items:center; gap:16px; padding:12px 18px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; }
+  header .sub { color:var(--muted); font-size:13px; }
+  header .api { margin-left:auto; display:flex; gap:6px; align-items:center; font-size:13px; }
+  header input { width:240px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; }
+  button { cursor:pointer; border:1px solid var(--line); background:var(--panel); border-radius:6px; padding:6px 10px; font-size:13px; }
+  button:hover { border-color:#9aa4ae; }
+  main { display:grid; grid-template-columns: 300px 1fr; height: calc(100vh - 58px); }
+  aside { background:var(--panel); border-right:1px solid var(--line); padding:14px; overflow:auto; }
+  aside h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:6px 0 10px; }
+  #trips { display:grid; grid-template-columns: 1fr 1fr; gap:6px; }
+  #trips button { font-variant-numeric: tabular-nums; }
+  #trips button.active { background:var(--ink); color:#fff; border-color:var(--ink); }
+  #status { margin:12px 0; font-size:13px; color:var(--muted); min-height:18px; }
+  #status.err { color:var(--accent); }
+  .metric { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px dashed var(--line); font-size:13px; }
+  .metric b { font-variant-numeric: tabular-nums; }
+  .big { font-size:28px; font-weight:700; margin:4px 0 2px; }
+  .legend { margin-top:14px; font-size:12px; color:var(--muted); }
+  .legend span { display:inline-block; width:14px; height:4px; margin-right:6px; vertical-align:middle; }
+  #map { height:100%; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PathSnap</h1>
+  <div class="sub">Map-matching &amp; route reconstruction · Team PT-009</div>
+  <div class="api">
+    <label for="api">API</label>
+    <input id="api" placeholder="http://192.168.x.x:8000">
+    <button id="connect">Connect</button>
+  </div>
+</header>
+<main>
+  <aside>
+    <h2>Evaluation trips</h2>
+    <div id="trips"></div>
+    <div id="status">Enter the API address and press Connect.</div>
+    <div id="results" hidden>
+      <h2>Results</h2>
+      <div class="metric"><span>Trip</span><b id="m-trip"></b></div>
+      <div style="margin:10px 0 4px;color:var(--muted);font-size:12px">Top-1 accuracy (classifier + HMM)</div>
+      <div class="big" id="m-acc"></div>
+      <div class="metric"><span>Classifier-only accuracy</span><b id="m-clf"></b></div>
+      <div class="metric"><span>Route continuity (per observation)</span><b id="m-cont"></b></div>
+      <div class="metric"><span>Reconstructed route continuity</span><b id="m-rcont"></b></div>
+      <div class="metric"><span>Route precision / recall</span><b id="m-pr"></b></div>
+      <div class="metric"><span>Route F1</span><b id="m-f1"></b></div>
+      <div class="metric"><span>GPS observations</span><b id="m-obs"></b></div>
+      <div class="metric"><span>HMM chain breaks</span><b id="m-brk"></b></div>
+      <div class="metric"><span>API processing time</span><b id="m-time"></b></div>
+    </div>
+    <div class="legend">
+      <div><span style="background:var(--gps)"></span>Raw GPS observations</div>
+      <div><span style="background:var(--accent)"></span>Predicted route</div>
+    </div>
+  </aside>
+  <div id="map"></div>
+</main>
+<script>
+const map = L.map("map").setView([20, 0], 2);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+let layers = L.layerGroup().addTo(map);
+
+const apiInput = document.getElementById("api");
+const statusEl = document.getElementById("status");
+const params = new URLSearchParams(location.search);
+apiInput.value = params.get("api") || localStorageGet("pathsnap_api") || "http://localhost:8000";
+
+function localStorageGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function localStorageSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function api() { return apiInput.value.replace(/\/+$/, ""); }
+function setStatus(msg, err=false) { statusEl.textContent = msg; statusEl.className = err ? "err" : ""; }
+const pct = v => (v === null || v === undefined) ? "–" : (100 * v).toFixed(2) + "%";
+
+async function loadTrips() {
+  setStatus("Connecting…");
+  try {
+    const r = await fetch(api() + "/trips");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const data = await r.json();
+    localStorageSet("pathsnap_api", api());
+    const box = document.getElementById("trips");
+    box.innerHTML = "";
+    data.trips.forEach(t => {
+      const b = document.createElement("button");
+      b.textContent = t;
+      b.onclick = () => runTrip(t, b);
+      box.appendChild(b);
+    });
+    setStatus(`${data.trips.length} trips available. Select one.`);
+  } catch (e) {
+    setStatus("Could not reach API: " + e.message, true);
+  }
+}
+
+async function runTrip(tripId, btn) {
+  document.querySelectorAll("#trips button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  setStatus(`Sending trip ${tripId} to the API…`);
+  const t0 = performance.now();
+  try {
+    const r = await fetch(api() + "/predict", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trip_id: tripId })
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status + " " + (await r.text()));
+    const d = await r.json();
+    draw(d);
+    showMetrics(d, (performance.now() - t0) / 1000);
+    setStatus(`Trip ${tripId} processed.`);
+  } catch (e) {
+    setStatus("Prediction failed: " + e.message, true);
+  }
+}
+
+function draw(d) {
+  layers.clearLayers();
+  const gps = L.layerGroup();
+  d.gps.forEach(p => L.circleMarker(p, { radius: 2, color: "#1f77b4", weight: 0, fillOpacity: 0.8 }).addTo(gps));
+  const route = L.layerGroup();
+  d.predicted_route.forEach(seg => L.polyline(seg, { color: "#d62728", weight: 4, opacity: 0.9 }).addTo(route));
+  gps.addTo(layers); route.addTo(layers);
+  if (d.gps.length) {
+    L.marker(d.gps[0], { title: "Start" }).bindTooltip("Start").addTo(layers);
+    L.marker(d.gps[d.gps.length - 1], { title: "End" }).bindTooltip("End").addTo(layers);
+    map.fitBounds(L.latLngBounds(d.gps), { padding: [30, 30] });
+  }
+}
+
+function showMetrics(d, rtt) {
+  const m = d.metrics;
+  document.getElementById("results").hidden = false;
+  document.getElementById("m-trip").textContent = d.trip_id;
+  document.getElementById("m-acc").textContent = pct(m.top1_accuracy);
+  document.getElementById("m-clf").textContent = pct(m.classifier_only_top1_accuracy);
+  document.getElementById("m-cont").textContent = pct(m.route_continuity);
+  document.getElementById("m-rcont").textContent = pct(m.reconstructed_route_continuity);
+  document.getElementById("m-pr").textContent = pct(m.route_precision) + " / " + pct(m.route_recall);
+  document.getElementById("m-f1").textContent = pct(m.route_f1);
+  document.getElementById("m-obs").textContent = d.n_observations.toLocaleString();
+  document.getElementById("m-brk").textContent = m.hmm_chain_breaks;
+  document.getElementById("m-time").textContent = d.timings_s.request_total.toFixed(2) + " s (round trip " + rtt.toFixed(2) + " s)";
+}
+
+document.getElementById("connect").onclick = loadTrips;
+apiInput.addEventListener("keydown", e => { if (e.key === "Enter") loadTrips(); });
+if (params.get("api")) loadTrips();
+</script>
+</body>
+</html>
