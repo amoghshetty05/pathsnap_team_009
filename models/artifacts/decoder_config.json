@@ -1,0 +1,28 @@
+{
+  "alpha": 2.0,
+  "beta": 0.5,
+  "selected_on": "TRAIN out-of-fold predictions",
+  "train_oof_top1_classifier_only": 0.8931266122098023,
+  "train_oof_top1_hmm": 0.9431373602751505,
+  "effective_parameter_alpha_x_beta": 1.0,
+  "grid": {
+    "alpha": [
+      0.5,
+      1.0,
+      2.0
+    ],
+    "beta": [
+      0.25,
+      0.5,
+      0.75,
+      1.0,
+      1.5,
+      2.0,
+      3.0,
+      5.0,
+      10.0,
+      20.0
+    ]
+  },
+  "lattice_build_seconds_train": 32.265968322753906
+}
