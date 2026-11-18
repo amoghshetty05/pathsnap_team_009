@@ -1,0 +1,11 @@
+2026-11-18 10:36:17,681 | INFO | Model loaded: LightGBM (tuned) | decoder alpha=2.000 beta=0.500 | evaluation dir: <repo>/data/raw/student_test
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2026-11-18 10:36:29,420 | INFO | GET /trips from 127.0.0.1 -> 10 trips
+2026-11-18 10:36:29,504 | INFO | POST /predict from 127.0.0.1: trip_id=00000040 - running pipeline
+2026-11-18 10:36:30,349 | INFO | trip_id=00000040 done: obs=2995 top1=0.9583 (classifier-only 0.9316) continuity=0.9650 reconstructed_continuity=1.0000 route_f1=0.9984 breaks=0 time=0.73s
+INFO:     127.0.0.1:56650 - "POST /predict HTTP/1.1" 200 OK
+2026-11-18 10:37:21,276 | INFO | POST /predict from 127.0.0.1: trip_id=00000091 - running pipeline
+2026-11-18 10:37:21,653 | INFO | trip_id=00000091 done: obs=874 top1=0.9497 (classifier-only 0.8936) continuity=0.8710 reconstructed_continuity=1.0000 route_f1=0.9944 breaks=0 time=0.36s
+INFO:     127.0.0.1:59172 - "POST /predict HTTP/1.1" 200 OK
+2026-11-18 10:37:21,663 | INFO | GET /trips from 127.0.0.1 -> 10 trips
+INFO:     127.0.0.1:59192 - "GET /health HTTP/1.1" 200 OK
